@@ -67,30 +67,88 @@ export interface Context {
 
 export type ContextFactory = (key: string, mouse: Mouse, defaultOptions?) => Context
 
-export const init = (c: CanvasRenderingContext2D) => {
+/*
+
+const { render, context } = init(c, [Button])
+
+draw((dx) => {
+  context(({ button }) => { // [c1]
+    // Refer's to last frame's data
+    const { hover: showThing } = button({ ...config }) [c1]
+    if (showThing) centerContext(({ text, margin }) => { [c1, c2]
+      text('Something Centered')
+      margin()
+      text('Something a line later')
+    })
+
+    c
+
+  })
+
+
+
+  // Render game or something
+
+  render()
+})
+
+*/
+
+type Component = () => Renderable
+interface Renderable {
+  render(c: CanvasRenderingContext2D)
+  factory(): Component
+}
+type factoryClass = (c: CanvasRenderingContext2D, context) => Component
+
+class Button {
+  constructor (
+    public x: number,
+    public y: number,
+    public width: number,
+    public height: number,
+    public text: string
+  ) {}
+
+  render (c, button: Button) {
+
+  }
+
+  factory (c, contextStack, renderList) {
+
+  }
+}
+
+interface PluginList {
+  [str: string]: Renderable
+}
+
+export const init = (c: CanvasRenderingContext2D, userPlugins: PluginList = {}) => {
   const defaults = setDefaults(c)
   // @TODO: Weight the benefits of pushing the options to a stack vs rendering immediately
-  // const renderList = []
+  const plugins = new Map(Object.entries({'button': Button, ...userPlugins}))
+  const renderList: Renderable[] = []
+  const contextStack = [] // Holds offsets and other information
+  const prevInput = {}
 
   const reset = () => {
     resetDefaults(c, defaults)
   }
 
-  const context: ContextFactory = (key, mouse, defaultOptions = {}) => {
-    const button = SimpleButtonFactory(c, key, mouse, defaultOptions)
-    const checkbox = CheckboxFactory(c, key, mouse, defaultOptions)
-    const container = ContainerFactory(c, mouse, context)
+  const context: ContextFactory = (callback: () => void, key) => {
+    const components = Object.fromEntries([...plugins.entries()].map(([name, renderable]) => [name, renderable.factory(c, contextStack, renderable)]))
+    callback()
+  }
 
-    c.restore() // @TODO: Figure out a better place to put this?
-    return {
-      button,
-      checkbox,
-      container,
+  const render = () => {
+    for (let renderable of renderList) {
+      renderable.render(c)
     }
   }
 
   return {
     reset,
     context,
+    render
   }
 }

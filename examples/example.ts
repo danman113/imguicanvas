@@ -1,4 +1,4 @@
-import { Checkbox } from './../src/checkbox'
+// import { Checkbox } from './../src/checkbox'
 import { setupMouseHandlers } from './../src/utils'
 import { init } from '../src'
 import { fullscreenCanvas, draw } from '../src/utils'
@@ -7,7 +7,7 @@ const canvas = <HTMLCanvasElement>document.getElementById('canvas')
 const pollCanvasDimensions = fullscreenCanvas(canvas)
 const pollMouse = setupMouseHandlers(canvas)
 const c = canvas.getContext('2d')
-const { context, reset } = init(c)
+const { context, render } = init(c)
 
 let frame = 0
 let showMovingButton = false
@@ -16,81 +16,32 @@ const start = draw((dt) => {
   frame += dt
   const mouse = pollMouse()
   const [width, height] = pollCanvasDimensions()
-  const { button, checkbox, container } = context('root', mouse)
+  const { button, checkbox, container } = context('root')
   c.clearRect(0, 0, width, height)
+  // const ctx = c
+  // const { x, y } = mouse
+  // ctx.beginPath();
+  // ctx.arc(100, 75, 50, 0, Math.PI * 2);
+  // ctx.clip();
+  // ctx.fillStyle = 'blue';
+  // ctx.fillRect(0, 0, width, height);
+  // ctx.fillStyle = 'orange';
+  // ctx.fillRect(0, 0, 100, 100);
+  // ctx.restore()
+  // c.save()
+  // c.rect(mouse.x, mouse.y, 400, 400)
+  // c.clip()
+  // c.fillStyle = 'black'
+  // c.fillRect(mouse.x, mouse.y, 400, 400)
 
-  const { clicked } = button(({ hovering }) => ({
-    label: JSON.stringify(mouse),
-    x: 0,
-    y: height - 70,
-    fontSize: 20,
-    backgroundColor: hovering ? 'blue' : 'red',
-    color: hovering ? 'red' : 'blue',
-    padding: hovering ? 20 : 15,
-  }))
-  if (clicked) alert(`You clicked on the button!`)
-
-  const { checked } = checkbox({
-    size: 40,
-    x: width / 2 - 40 / 2,
-    default: false,
-  })
-
-  if (checked) {
-    const { checkbox, button } = container('hidden-weird-checkbox-toggler', {
-      x: width / 4,
-      y: height / 4,
-      width: width / 2,
-      height: height / 2,
-    })
-    const { checked } = checkbox({
-      default: showMovingButton,
-    })
-
-    showMovingButton = checked
-
-    const { clicked } = button({
-      label: 'Reset Game',
-      y: height / 4 + 50,
-    })
-
-    if (clicked) hits = 0
-
-    if (showMovingButton) {
-      const { button } = context('moving-button-context', mouse)
-      const { clicked } = button(({ hovering, down }) => ({
-        backgroundColor: [
-          down && 'rgba(230, 40, 40, 0.8)',
-          hovering && 'rgba(40, 40, 230, 0.8)',
-          'rgba(20, 230, 40, 0.8)',
-        ].find(Boolean),
-        x: frame % width,
-        y: 40,
-        width: 30,
-        height: 30,
-      }))
-      if (clicked) hits++
-
-      c.fillStyle = 'black'
-      c.font = `20px sans-serif`
-      c.fillText(`Hits: ${hits}`, 0, 20)
-    }
-  } else {
-    const { checkbox } = container('default-checkbox-container', {
-      x: width / 4,
-      y: height / 4,
-      width: width / 2,
-      height: height / 2,
-    })
-
-    for (let i = 0; i < 20; i++) {
-      checkbox({
-        y: height / 4 + i * 30,
-      })
-    }
-  }
-
-  reset()
+  // c.fillStyle = 'blue'
+  // c.fillRect(mouse.x + 0, mouse.y + 10, 50, 25)
+  container('container1', mouse.x, mouse.y, 400, 400, 'black')
+  button('first', 0, 10, 50, 50)
+  // c.fillRect(frame, 40, 50, 50)
+  
+  render()
+  c.restore()
 })
 
 start()

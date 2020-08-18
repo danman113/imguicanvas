@@ -1,7 +1,7 @@
-import SimpleButtonFactory, { Button } from './button'
+// import SimpleButtonFactory, { Button } from './button'
 import { Mouse } from './mouse'
-import CheckboxFactory, { Checkbox } from './checkbox'
-import { ContainerFactory, Container } from './container'
+// import CheckboxFactory, { Checkbox } from './checkbox'
+// import { ContainerFactory, Container } from './container'
 
 const defaults = {
   textBaseline: 'bottom',
@@ -59,38 +59,98 @@ Required Features:
       2. Resets canvas invariants
 */
 
-export interface Context {
-  button: Button
-  checkbox: Checkbox
-  container: Container
+class Button {
+  constructor(
+    public key,
+    public x = 0,
+    public y = 0,
+    public width = 0,
+    public height = 0,
+    public color = 'blue',
+    public hoverColor = 'red',
+    public textColor = 'white'
+  ) {}
+  static factory(push) {
+    return (key: string, x: number, y: number, width: number, height: number, ...args) =>
+      push(new Button(key, x, y, width, height, ...args))
+  }
+
+  render (c: CanvasRenderingContext2D, container: Dimensions) {
+    c.fillStyle = this.color
+    c.fillRect(container.x + this.x, container.y + this.y, this.width, this.height)
+  }
 }
 
-export type ContextFactory = (key: string, mouse: Mouse, defaultOptions?) => Context
+class Checkbox {
+  constructor() {}
+}
+
+interface Dimensions {
+  x: number,
+  y: number,
+  width: number,
+  height: number
+}
+
+class Container {
+  constructor(public key, public x = 0, public y = 0, public width = 0, public height = 0, public color = 'white') {}
+  
+  render(c: CanvasRenderingContext2D, container: Dimensions) {
+    const x = Math.max(this.x, container.x)
+    const y = Math.max(this.y, container.y)
+    const containerX = container.x + container.width
+    const containerY = container.y + container.height
+    // console.log(x, y, Math.min(this.width, containerX - x), Math.min(this.height, containerY - y))
+    c.save()
+    c.rect(x, y, Math.min(this.width, containerX - x), Math.min(this.height, containerY - y))
+    c.clip()
+    c.fillStyle = this.color
+    c.fillRect(this.x, this.y, this.width, this.height)
+  }
+
+  static factory(push) {
+    return (key, ...args) => push(new Container(key, ...args))
+  }
+}
+
+export interface Context {
+  button: (key: string, x: number, y: number, width: number, height: number) => void
+  checkbox: () => void
+  container: () => void
+}
+
+export type ContextFactory = (key: string) => Context
 
 export const init = (c: CanvasRenderingContext2D) => {
   const defaults = setDefaults(c)
-  // @TODO: Weight the benefits of pushing the options to a stack vs rendering immediately
-  // const renderList = []
+  let renderList = []
+  const push = (...rest) => renderList.push(...rest)
 
-  const reset = () => {
-    resetDefaults(c, defaults)
+  const render = () => {
+    let currentContext = { x: 0, y: 0, width: 2000, height: 2000 }
+    c.restore()
+    for (let renderable of renderList) {
+      renderable.render(c, currentContext)
+      if (renderable instanceof Container) {
+        currentContext = renderable
+      }
+    }
+
+    
+    renderList = []
   }
 
-  const context: ContextFactory = (key, mouse, defaultOptions = {}) => {
-    const button = SimpleButtonFactory(c, key, mouse, defaultOptions)
-    const checkbox = CheckboxFactory(c, key, mouse, defaultOptions)
-    const container = ContainerFactory(c, mouse, context)
-
-    c.restore() // @TODO: Figure out a better place to put this?
+  const context: ContextFactory = (key) => {
     return {
-      button,
-      checkbox,
-      container,
+      key,
+      button: Button.factory(push),
+      checkbox: () => {},
+      container: Container.factory(push),
     }
   }
 
   return {
-    reset,
+    render,
     context,
   }
 }

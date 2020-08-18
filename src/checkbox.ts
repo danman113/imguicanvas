@@ -6,7 +6,7 @@ interface CheckboxOutput {
 }
 
 const defaultCheckboxOutput = {
-  checked: false
+  checked: false,
 }
 
 interface CheckboxOptions extends ButtonOptions {
@@ -23,7 +23,9 @@ const defaultCheckboxOptions = {
 }
 
 type CheckboxConfigFunction = (outputs: CheckboxOutput) => Partial<CheckboxOptions>
-export type Checkbox = (options: Partial<CheckboxOptions> | CheckboxConfigFunction) => CheckboxOutput
+export type Checkbox = (
+  options: Partial<CheckboxOptions> | CheckboxConfigFunction
+) => CheckboxOutput
 
 const checkboxState: Map<string, Map<number, boolean>> = new Map()
 
@@ -38,7 +40,10 @@ const CheckboxContext = (
   const currentCheckboxId = key
   let id = 0
   const checkbox: Checkbox = (options) => {
-    const { size, default: def, ...finalOptions } = { ...newOptions, ...(options instanceof Function ? options(defaultCheckboxOutput) : options) }
+    const { size, default: def, ...finalOptions } = {
+      ...newOptions,
+      ...(options instanceof Function ? options(defaultCheckboxOutput) : options),
+    }
 
     // We do this here so we don't allocate a new map for every new context unless it's used
     const factoryState: Map<number, boolean> = checkboxState.get(currentCheckboxId) ?? new Map()

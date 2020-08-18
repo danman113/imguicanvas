@@ -2,8 +2,8 @@ export interface Mouse {
   x: number
   y: number
   buttons: boolean[]
-  clicked: boolean,
-  wheelDeltaX: number,
+  clicked: boolean
+  wheelDeltaX: number
   wheelDeltaY: number
 }
 

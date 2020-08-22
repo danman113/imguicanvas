@@ -59,6 +59,17 @@ Required Features:
       2. Resets canvas invariants
 */
 
+const CONTEXT_SEPARATOR = '|'
+
+interface GUIComponent {
+  render(c: CanvasRenderingContext2D, container?: Dimensions)
+}
+
+interface GUIComponentStatic {
+  new (): GUIComponent
+  factory(push: (...rest: any[]) => void, contextKey: string, contextFactory?: ContextFactory)
+}
+
 class Button {
   constructor(
     public key,
@@ -70,12 +81,21 @@ class Button {
     public hoverColor = 'red',
     public textColor = 'white'
   ) {}
-  static factory(push) {
+  static factory(push, contextKey = '', contextFactory?: ContextFactory) {
     return (key: string, x: number, y: number, width: number, height: number, ...args) =>
-      push(new Button(key, x, y, width, height, ...args))
+      push(
+        new Button(
+          contextKey ? contextKey + CONTEXT_SEPARATOR + key : key,
+          x,
+          y,
+          width,
+          height,
+          ...args
+        )
+      )
   }
 
-  render (c: CanvasRenderingContext2D, container: Dimensions) {
+  render(c: CanvasRenderingContext2D, container: Dimensions) {
     c.fillStyle = this.color
     c.fillRect(container.x + this.x, container.y + this.y, this.width, this.height)
   }
@@ -86,30 +106,68 @@ class Checkbox {
 }
 
 interface Dimensions {
-  x: number,
-  y: number,
-  width: number,
+  x: number
+  y: number
+  width: number
   height: number
 }
 
 class Container {
-  constructor(public key, public x = 0, public y = 0, public width = 0, public height = 0, public color = 'white') {}
-  
-  render(c: CanvasRenderingContext2D, container: Dimensions) {
-    const x = Math.max(this.x, container.x)
-    const y = Math.max(this.y, container.y)
-    const containerX = container.x + container.width
-    const containerY = container.y + container.height
-    // console.log(x, y, Math.min(this.width, containerX - x), Math.min(this.height, containerY - y))
-    c.save()
-    c.rect(x, y, Math.min(this.width, containerX - x), Math.min(this.height, containerY - y))
-    c.clip()
-    c.fillStyle = this.color
-    c.fillRect(this.x, this.y, this.width, this.height)
+  public globalDimensions: Dimensions
+  public x: number = 0
+  public y: number = 0
+  public width: number = 0
+  public height: number = 0
+  public color: string = 'white'
+  constructor(
+    public key: string,
+    { x, y, width, height, color}
+  ) {
+    Object.assign(this, {key, x, y, width, height, color})
+    this.globalDimensions = {
+      x,
+      y,
+      width,
+      height,
+    }
   }
 
-  static factory(push) {
-    return (key, ...args) => push(new Container(key, ...args))
+  subset(container: Dimensions) {
+    const x = this.x + container.x
+    const y = this.y + container.y
+    this.globalDimensions.x = x
+    this.globalDimensions.y = y
+    this.globalDimensions.width = Math.min(this.width, container.width)
+    this.globalDimensions.height = Math.min(this.height, container.height)
+  }
+
+  render(c: CanvasRenderingContext2D, container: Dimensions) {
+    this.subset(container)
+    c.restore()
+    c.save()
+    c.beginPath()
+    c.rect(
+      this.globalDimensions.x,
+      this.globalDimensions.y,
+      this.globalDimensions.width,
+      this.globalDimensions.height
+    )
+    c.clip()
+    c.fillStyle = this.color
+    c.fillRect(
+      this.globalDimensions.x,
+      this.globalDimensions.y,
+      this.globalDimensions.width,
+      this.globalDimensions.height
+    )
+  }
+
+  static factory(push, contextKey = '', contextFactory: ContextFactory) {
+    return (key, options, callback) => {
+      const derivedKey = contextKey ? contextKey + CONTEXT_SEPARATOR + key : key
+      push(new Container(derivedKey, options))
+      contextFactory(derivedKey, callback)
+    }
   }
 }
 
@@ -119,38 +177,46 @@ export interface Context {
   container: () => void
 }
 
-export type ContextFactory = (key: string) => Context
+export type ContextFactory = (key: string, callback: Function) => void
 
 export const init = (c: CanvasRenderingContext2D) => {
   const defaults = setDefaults(c)
-  let renderList = []
-  const push = (...rest) => renderList.push(...rest)
+  let renderList: GUIComponent[] = []
+  let oldRenderedList = []
+  let contextStack = []
+  let state = new Map<string, any>()
+  const push = (...rest: any[]) => {
+    renderList.push(...rest)
+  }
 
   const render = () => {
-    let currentContext = { x: 0, y: 0, width: 2000, height: 2000 }
-    c.restore()
+    console.log(renderList)
+    let currentContext = { x: 0, y: 0, width: Infinity, height: Infinity }
     for (let renderable of renderList) {
       renderable.render(c, currentContext)
       if (renderable instanceof Container) {
-        currentContext = renderable
+        currentContext = renderable.globalDimensions
+        contextStack.push(renderable.globalDimensions)
       }
     }
-
-    
+    // Look at this later to see if it actually affects performance
+    oldRenderedList = renderList
     renderList = []
+    contextStack = []
   }
 
-  const context: ContextFactory = (key) => {
-    return {
+  const contextFactory: ContextFactory = (key: string, callback: Function) => {
+    callback({
       key,
-      button: Button.factory(push),
+      // @TODO: Make this generic
+      button: Button.factory(push, key, contextFactory),
       checkbox: () => {},
-      container: Container.factory(push),
-    }
+      container: Container.factory(push, key, contextFactory),
+    })
   }
 
   return {
     render,
-    context,
+    context: contextFactory,
   }
 }

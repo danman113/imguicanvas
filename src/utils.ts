@@ -17,19 +17,29 @@ const getWindowDimensions = () => {
   return [width, height]
 }
 
-export const fullscreenCanvas = (element: HTMLCanvasElement) => {
+export const fullscreenCanvas = (element: HTMLCanvasElement, hook?: (UIEvent) => void) => {
   let dimensions = getWindowDimensions()
   setCanvasDimensions(element, dimensions[0], dimensions[1])
 
   window.addEventListener('resize', (e) => {
     dimensions = getWindowDimensions()
     setCanvasDimensions(element, dimensions[0], dimensions[1])
+    hook(e)
   })
   return () => dimensions
 }
 
 export const setupMouseHandlers = (element: HTMLCanvasElement): (() => Mouse) => {
-  const mouse: Mouse = { x: 0, y: 0, buttons: [], clicked: false, wheelDeltaX: 0, wheelDeltaY: 0 }
+  let currentTouch = -1
+  const mouse: Mouse = {
+    x: 0,
+    y: 0,
+    buttons: [],
+    touches: new Map(),
+    clicked: false,
+    wheelDeltaX: 0,
+    wheelDeltaY: 0,
+  }
   let clickedThisPoll = false
   element.addEventListener('mousemove', (e) => {
     if (e.offsetX || e.offsetY) {
@@ -60,7 +70,51 @@ export const setupMouseHandlers = (element: HTMLCanvasElement): (() => Mouse) =>
   })
 
   element.addEventListener('wheel', (e) => {
-    console.log(e)
+    // console.log(e)
+  })
+
+  element.addEventListener('touchstart', (e) => {
+    e.preventDefault()
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i]
+      if (i === 0) {
+        mouse.x = touch.clientX
+        mouse.y = touch.clientY
+        clickedThisPoll = true
+        mouse[0] = true
+      }
+      mouse.touches.set(touch.identifier, touch)
+    }
+  })
+
+  element.addEventListener('touchend', (e) => {
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i]
+      mouse.touches.delete(touch.identifier)
+      mouse[0] = false
+    }
+  })
+
+  element.addEventListener('touchmove', (e) => {
+    e.preventDefault()
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i]
+      mouse.touches.set(touch.identifier, touch)
+      if (i === 0) {
+        mouse.x = touch.clientX
+        mouse.y = touch.clientY
+        clickedThisPoll = true
+        mouse[0] = true
+      }
+    }
+  })
+
+  element.addEventListener('touchcancel', (e) => {
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i]
+      mouse.touches.delete(touch.identifier)
+      mouse[0] = false
+    }
   })
 
   element.addEventListener('contextmenu', (e) => e.preventDefault())

@@ -14,32 +14,24 @@ let showMovingButton = false
 let hits = 0
 const start = draw((dt) => {
   frame += dt
-  const mouse = pollMouse()
+  const { x, y, touches } = pollMouse()
   const [width, height] = pollCanvasDimensions()
-  const { button, checkbox, container } = context('root')
   c.clearRect(0, 0, width, height)
-  // const ctx = c
-  // const { x, y } = mouse
-  // ctx.beginPath();
-  // ctx.arc(100, 75, 50, 0, Math.PI * 2);
-  // ctx.clip();
-  // ctx.fillStyle = 'blue';
-  // ctx.fillRect(0, 0, width, height);
-  // ctx.fillStyle = 'orange';
-  // ctx.fillRect(0, 0, 100, 100);
-  // ctx.restore()
-  // c.save()
-  // c.rect(mouse.x, mouse.y, 400, 400)
-  // c.clip()
-  // c.fillStyle = 'black'
-  // c.fillRect(mouse.x, mouse.y, 400, 400)
+  for (let [_, touch] of touches) {
+    c.fillStyle = 'teal'
+    c.fillRect(touch.clientX, touch.clientY, touch.radiusX * 2, touch.radiusY * 2)
+  }
+  context('root', ({ button, container }) => {
+    const size = 400
+    container('container1', { x, y: 0, width: size, height: size, color: 'black' }, ({ button }) => {
+      button('thing', frame % size, 10, 50, 50 )
+    })
 
-  // c.fillStyle = 'blue'
-  // c.fillRect(mouse.x + 0, mouse.y + 10, 50, 25)
-  container('container1', mouse.x, mouse.y, 400, 400, 'black')
-  button('first', 0, 10, 50, 50)
-  // c.fillRect(frame, 40, 50, 50)
-  
+    container('container5', { x: 0, y, width: size, height: size, color: 'red' }, ({ button }) => {
+      button('thing', frame % size, 10, 50, 50 )
+    })
+  })
+
   render()
   c.restore()
 })

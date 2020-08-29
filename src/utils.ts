@@ -17,7 +17,10 @@ const getWindowDimensions = () => {
   return [width, height]
 }
 
-export const fullscreenCanvas = (element: HTMLCanvasElement, hook?: (UIEvent) => void) => {
+export const fullscreenCanvas = (
+  element: HTMLCanvasElement,
+  hook: (UIEvent) => void = () => {}
+) => {
   let dimensions = getWindowDimensions()
   setCanvasDimensions(element, dimensions[0], dimensions[1])
 
@@ -30,17 +33,21 @@ export const fullscreenCanvas = (element: HTMLCanvasElement, hook?: (UIEvent) =>
 }
 
 export const setupMouseHandlers = (element: HTMLCanvasElement): (() => Mouse) => {
-  let currentTouch = -1
+  let wheelDeltaX
+  let wheelDeltaY
   const mouse: Mouse = {
     x: 0,
     y: 0,
     buttons: [],
     touches: new Map(),
+    action: false,
     clicked: false,
     wheelDeltaX: 0,
     wheelDeltaY: 0,
   }
+
   let clickedThisPoll = false
+  let downThisPoll = false
   element.addEventListener('mousemove', (e) => {
     if (e.offsetX || e.offsetY) {
       mouse.x = e.offsetX
@@ -50,11 +57,12 @@ export const setupMouseHandlers = (element: HTMLCanvasElement): (() => Mouse) =>
 
   element.addEventListener('mousedown', (e) => {
     mouse.buttons[e.button] = true
-    clickedThisPoll = true
+    downThisPoll = true
   })
 
   element.addEventListener('mouseup', (e) => {
     mouse.buttons[e.button] = false
+    clickedThisPoll = true
   })
 
   element.addEventListener('mouseleave', (e) => {
@@ -70,28 +78,16 @@ export const setupMouseHandlers = (element: HTMLCanvasElement): (() => Mouse) =>
   })
 
   element.addEventListener('wheel', (e) => {
-    // console.log(e)
+    e.preventDefault()
+    wheelDeltaX = e.deltaX
+    wheelDeltaY = e.deltaY
   })
 
   element.addEventListener('touchstart', (e) => {
     e.preventDefault()
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i]
-      if (i === 0) {
-        mouse.x = touch.clientX
-        mouse.y = touch.clientY
-        clickedThisPoll = true
-        mouse[0] = true
-      }
       mouse.touches.set(touch.identifier, touch)
-    }
-  })
-
-  element.addEventListener('touchend', (e) => {
-    for (let i = 0; i < e.changedTouches.length; i++) {
-      const touch = e.changedTouches[i]
-      mouse.touches.delete(touch.identifier)
-      mouse[0] = false
     }
   })
 
@@ -100,12 +96,6 @@ export const setupMouseHandlers = (element: HTMLCanvasElement): (() => Mouse) =>
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i]
       mouse.touches.set(touch.identifier, touch)
-      if (i === 0) {
-        mouse.x = touch.clientX
-        mouse.y = touch.clientY
-        clickedThisPoll = true
-        mouse[0] = true
-      }
     }
   })
 
@@ -113,7 +103,17 @@ export const setupMouseHandlers = (element: HTMLCanvasElement): (() => Mouse) =>
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i]
       mouse.touches.delete(touch.identifier)
-      mouse[0] = false
+      clickedThisPoll = true
+      mouse.buttons[0] = false
+    }
+  })
+
+  element.addEventListener('touchend', (e) => {
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i]
+      mouse.touches.delete(touch.identifier)
+      clickedThisPoll = true
+      mouse.buttons[0] = false
     }
   })
 
@@ -121,7 +121,19 @@ export const setupMouseHandlers = (element: HTMLCanvasElement): (() => Mouse) =>
   element.addEventListener('dragenter', (e) => e.preventDefault())
 
   const poll = () => {
+    for (let [_, touch] of mouse.touches) {
+      mouse.x = touch.clientX
+      mouse.y = touch.clientY
+      downThisPoll = true
+      mouse.buttons[0] = true
+    }
+
     mouse.clicked = clickedThisPoll
+    mouse.action = downThisPoll
+    mouse.wheelDeltaX = wheelDeltaX
+    mouse.wheelDeltaY = wheelDeltaY
+    wheelDeltaX = 0
+    wheelDeltaY = 0
     clickedThisPoll = false
     return mouse
   }

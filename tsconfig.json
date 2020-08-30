@@ -1,8 +1,9 @@
 {
   "compilerOptions": {
-      "preserveConstEnums": true,
-      "experimentalDecorators": true,
-      "target": "ES6",
-      "lib": ["es2017", "DOM"]
-    }
+    "preserveConstEnums": true,
+    "experimentalDecorators": true,
+    "target": "ES6",
+    "lib": ["es2017", "DOM"]
+  },
+  "include": ["src/**/*"],
 }

@@ -166,29 +166,28 @@
   }
   GUIComponent.defaultState = {};
   class Button {
-    constructor(key, contextKey, x = 0, y = 0, width = 0, height = 0, color = "blue", hoverColor = "red", textColor = "white") {
+    constructor(key, contextKey, props) {
       this.key = key;
       this.contextKey = contextKey;
-      this.x = x;
-      this.y = y;
-      this.width = width;
-      this.height = height;
-      this.color = color;
-      this.hoverColor = hoverColor;
-      this.textColor = textColor;
+      this.props = props;
     }
     static factory(push, contextKey = "", state, contextFactory) {
-      return (key, x, y, width, height, ...args) => {
+      return (key, props) => {
         const globalKey = contextKey ? contextKey + CONTEXT_SEPARATOR + key : key;
-        push(new Button(globalKey, contextKey, x, y, width, height, ...args));
+        push(new Button(globalKey, contextKey, props));
         return state.get(globalKey) || Button.defaultState;
       };
     }
+    computeProps(state) {
+      return Object.assign({}, Button.defaultProps(state), typeof this.props === "function" ? this.props(state) : this.props);
+    }
     render(c2, container, state) {
-      c2.fillStyle = state.hovering ? this.color : this.hoverColor;
-      c2.fillRect(container.x + this.x, container.y + this.y, this.width, this.height);
+      const {x, y, width, height, backgroundColor} = this.computeProps(state);
+      c2.fillStyle = backgroundColor;
+      c2.fillRect(container.x + x, container.y + y, width, height);
     }
     update(mouse3, container) {
+      const {x, y, width, height} = this.computeProps(Button.defaultState);
       const mo = 0.5;
       const mouseBox = {
         x: mouse3.x - mo,
@@ -197,10 +196,10 @@
         height: mo
       };
       const hovering = intersection({
-        x: container.x + this.x,
-        y: container.y + this.y,
-        width: this.width,
-        height: this.height
+        x: container.x + x,
+        y: container.y + y,
+        width,
+        height
       }, mouseBox) && intersection(container, mouseBox);
       const {wheelDeltaX, wheelDeltaY} = mouse3;
       const scrollX = hovering ? wheelDeltaX : 0;
@@ -214,6 +213,13 @@
       };
     }
   }
+  Button.defaultProps = (state) => ({
+    x: 0,
+    y: 0,
+    width: 10,
+    height: 10,
+    backgroundColor: state.hovering ? "red" : "blue"
+  });
   Button.defaultState = {
     hovering: false,
     scrollX: 0,
@@ -221,44 +227,27 @@
     clicked: false,
     down: false
   };
-  class Context extends GUIComponent {
-    constructor(key = "", contextKey = "", x = 0, y = 0, width = Infinity, height = Infinity) {
+  class ContextContainer extends GUIComponent {
+    constructor(key = "", contextKey = "", props = {
+      x: 0,
+      y: 0,
+      width: Infinity,
+      height: Infinity
+    }) {
       super();
       this.key = key;
       this.contextKey = contextKey;
-      this.x = x;
-      this.y = y;
-      this.width = width;
-      this.height = height;
-      this.globalBoundary = {
-        x,
-        y,
-        width,
-        height
-      };
-    }
-    get globalKey() {
-      return;
+      this.props = props;
+      this.globalBoundary = props;
     }
   }
-  class Container extends Context {
-    constructor(key, contextKey, {x, y, width, height, color}) {
+  class Container extends ContextContainer {
+    constructor(key, contextKey, props) {
       super();
       this.key = key;
       this.contextKey = contextKey;
-      this.x = 0;
-      this.y = 0;
-      this.width = 0;
-      this.height = 0;
-      this.color = "white";
-      Object.assign(this, {
-        key,
-        x,
-        y,
-        width,
-        height,
-        color
-      });
+      this.props = props;
+      const {x, y, width, height} = props;
       this.globalBoundary = {
         x,
         y,
@@ -267,19 +256,20 @@
       };
     }
     subset(container) {
-      const x = this.x + container.x;
-      const y = this.y + container.y;
+      const {x: _x, y: _y, width, height} = this.props;
+      const x = _x + container.x;
+      const y = _y + container.y;
       this.globalBoundary.x = x;
       this.globalBoundary.y = y;
-      this.globalBoundary.width = Math.min(this.width, container.width);
-      this.globalBoundary.height = Math.min(this.height, container.height);
+      this.globalBoundary.width = Math.min(width, container.width);
+      this.globalBoundary.height = Math.min(height, container.height);
     }
     render(c2, container, state) {
       this.subset(container);
       c2.beginPath();
       c2.rect(this.globalBoundary.x, this.globalBoundary.y, this.globalBoundary.width, this.globalBoundary.height);
       c2.clip();
-      c2.fillStyle = this.color;
+      c2.fillStyle = this.props.color;
       c2.fillRect(this.globalBoundary.x, this.globalBoundary.y, this.globalBoundary.width, this.globalBoundary.height);
     }
     static factory(push, contextKey = "", state, contextFactory) {
@@ -308,7 +298,7 @@
           c2.save();
         }
         renderable.render(c2, contextMap.get(renderable.contextKey), state.get(renderable.key) || renderable.constructor.defaultState);
-        if (renderable instanceof Context) {
+        if (renderable instanceof ContextContainer) {
           currentContext = renderable.key;
           contextMap.set(renderable.key, renderable.globalBoundary);
         }
@@ -330,12 +320,13 @@
         container: Container.factory(push, key, state, contextFactory)
       });
     };
+    const context2 = (key, callback) => {
+      push(new ContextContainer(key));
+      return contextFactory(key, callback);
+    };
     return {
       render: render2,
-      context: (key, callback) => {
-        push(new Context(key));
-        return contextFactory(key, callback);
-      }
+      context: context2
     };
   };
 
@@ -369,7 +360,12 @@
         height: size,
         color: "black"
       }, ({button: button2}) => {
-        const {clicked} = button2("thing", frame % size, offset, 50, 50);
+        const {clicked} = button2("thing", {
+          x: frame % size,
+          y: offset,
+          width: 50,
+          height: 50
+        });
         if (clicked) {
           showMovingButton = !showMovingButton;
         }
@@ -388,7 +384,12 @@
           height: size / 2,
           color: "green"
         }, ({button: button2}) => {
-          const {scrollY, clicked, down} = button2("thing", frame % size, 10, 50, 50);
+          const {scrollY, clicked, down} = button2("thing", {
+            x: frame % size,
+            y: 10,
+            width: 50,
+            height: 50
+          });
           offset += scrollY;
           if (clicked)
             hits++;
@@ -402,7 +403,12 @@
           height: size / 2,
           color: "orange"
         }, ({button: button2}) => {
-          const {clicked} = button2("thing", frame % size / 2, 10, 50, 50);
+          const {clicked} = button2("thing", {
+            x: frame % size / 2,
+            y: 10,
+            width: 50,
+            height: 50
+          });
           if (clicked)
             alert("yellow");
         });
@@ -413,13 +419,24 @@
           height: size / 2,
           color: "purple"
         }, ({button: button2}) => {
-          const {clicked} = button2("thing", frame % size / 2, 10, 50, 50);
+          const {clicked} = button2("thing", {
+            x: frame % size / 2,
+            y: 10,
+            width: 50,
+            height: 50
+          });
           if (clicked)
             alert("purple");
         });
       });
       if (showMovingButton) {
-        const {scrollY, clicked, down} = button("thing", movingButtonY, 50, 50, 50);
+        const {scrollY, clicked, down} = button("thing", ({down: down2, hovering}) => ({
+          x: movingButtonY,
+          y: 50,
+          width: 50,
+          height: 50,
+          backgroundColor: [down2 && "yellow", hovering && "purple", "blue"].filter(Boolean)[0]
+        }));
         if (clicked)
           alert("Hello you clicked me");
       }

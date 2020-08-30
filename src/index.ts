@@ -65,8 +65,8 @@ const CONTEXT_SEPARATOR = '|'
 class GUIComponent {
   public key: string = ''
   public contextKey: string = ''
-  render(c: CanvasRenderingContext2D, container?: Dimensions, state?: State) {}
-  update(mouse: Mouse, container?: Dimensions) {}
+  render(c: CanvasRenderingContext2D, container?: Box, state?: State) {}
+  update(mouse: Mouse, container?: Box) {}
   static defaultState = {}
   static factory(
     push: (...rest: any[]) => void,
@@ -78,29 +78,57 @@ class GUIComponent {
 
 type State = Map<string, any>
 
+interface ButtonProps extends Box {
+  backgroundColor?: string
+  textColor?: string
+}
+
+interface ButtonState {
+  hovering: boolean
+  scrollX: number
+  scrollY: number
+  clicked: boolean
+  down: boolean
+}
+
+type ButtonPropFunction = (state: ButtonState) => ButtonProps
+type ButtonArg = ButtonProps | ButtonPropFunction
+type ButtonFactory = (key: string, props: ButtonArg) => ButtonState
+
 class Button implements GUIComponent {
-  constructor(
-    public key,
-    public contextKey,
-    public x = 0,
-    public y = 0,
-    public width = 0,
-    public height = 0,
-    public color = 'blue',
-    public hoverColor = 'red',
-    public textColor = 'white'
-  ) {}
-  static factory(push, contextKey = '', state: State, contextFactory?: ContextFactory) {
-    return (key: string, x: number, y: number, width: number, height: number, ...args) => {
+  static defaultProps: ButtonPropFunction = (state) => ({
+    x: 0,
+    y: 0,
+    width: 10,
+    height: 10,
+    backgroundColor: state.hovering ? 'red' : 'blue',
+  })
+  constructor(public key, public contextKey, public props: ButtonArg) {}
+  static factory(
+    push,
+    contextKey = '',
+    state: State,
+    contextFactory?: ContextFactory
+  ): ButtonFactory {
+    return (key, props) => {
       const globalKey = contextKey ? contextKey + CONTEXT_SEPARATOR + key : key
-      push(new Button(globalKey, contextKey, x, y, width, height, ...args))
+      push(new Button(globalKey, contextKey, props))
       return state.get(globalKey) || Button.defaultState
     }
   }
 
-  render(c: CanvasRenderingContext2D, container: Dimensions, state: any) {
-    c.fillStyle = state.hovering ? this.color : this.hoverColor
-    c.fillRect(container.x + this.x, container.y + this.y, this.width, this.height)
+  computeProps(state: ButtonState) {
+    return Object.assign(
+      {},
+      Button.defaultProps(state),
+      typeof this.props === 'function' ? this.props(state) : this.props
+    )
+  }
+
+  render(c: CanvasRenderingContext2D, container: Box, state: any) {
+    const { x, y, width, height, backgroundColor } = this.computeProps(state)
+    c.fillStyle = backgroundColor
+    c.fillRect(container.x + x, container.y + y, width, height)
   }
 
   static defaultState = {
@@ -111,16 +139,17 @@ class Button implements GUIComponent {
     down: false,
   }
 
-  update(mouse: Mouse, container: Dimensions) {
+  update(mouse: Mouse, container: Box) {
+    const { x, y, width, height } = this.computeProps(Button.defaultState)
     const mo = 0.5
     const mouseBox = { x: mouse.x - mo, y: mouse.y - mo, width: mo, height: mo }
     const hovering =
       intersection(
         {
-          x: container.x + this.x,
-          y: container.y + this.y,
-          width: this.width,
-          height: this.height,
+          x: container.x + x,
+          y: container.y + y,
+          width: width,
+          height: height,
         },
         mouseBox
       ) && intersection(container, mouseBox)
@@ -143,48 +172,51 @@ class Checkbox {
   constructor() {}
 }
 
-interface Dimensions {
+interface Box {
   x: number
   y: number
   width: number
   height: number
 }
 
-export class Context extends GUIComponent {
-  public globalBoundary: Dimensions
-  get globalKey() {
-    return
-  }
+export class ContextContainer extends GUIComponent {
+  public globalBoundary: Box
   constructor(
     public key: string = '',
     public contextKey: string = '',
-    public x = 0,
-    public y = 0,
-    public width = Infinity,
-    public height = Infinity
+    public props: Box = { x: 0, y: 0, width: Infinity, height: Infinity }
   ) {
     super()
-    this.globalBoundary = {
-      x,
-      y,
-      width,
-      height,
-    }
+    this.globalBoundary = props
   }
 }
 
-export type ContextFactory = (key: string, callback: Function) => void
+export interface ContextArguments {
+  button: ButtonFactory
+  container: ContainerFactory
+}
 
-class Container extends Context {
-  public globalBoundary: Dimensions
-  public x: number = 0
-  public y: number = 0
-  public width: number = 0
-  public height: number = 0
-  public color: string = 'white'
-  constructor(public key: string, public contextKey: string, { x, y, width, height, color }) {
+export type ContextFunction = (args: ContextArguments) => void
+
+export type ContextFactory = (key: string, callback: ContextFunction) => void
+
+export interface ContainerProps extends Box {
+  color?: string
+}
+
+export type ContainerFactory = (
+  key: string,
+  props: ContainerProps,
+  callback: ContextFunction
+) => ContainerState
+
+export type ContainerState = any
+
+class Container extends ContextContainer {
+  public globalBoundary: Box
+  constructor(public key: string, public contextKey: string, public props: ContainerProps) {
     super()
-    Object.assign(this, { key, x, y, width, height, color })
+    const { x, y, width, height } = props
     this.globalBoundary = {
       x,
       y,
@@ -193,16 +225,17 @@ class Container extends Context {
     }
   }
 
-  subset(container: Dimensions) {
-    const x = this.x + container.x
-    const y = this.y + container.y
+  subset(container: Box) {
+    const { x: _x, y: _y, width, height } = this.props
+    const x = _x + container.x
+    const y = _y + container.y
     this.globalBoundary.x = x
     this.globalBoundary.y = y
-    this.globalBoundary.width = Math.min(this.width, container.width)
-    this.globalBoundary.height = Math.min(this.height, container.height)
+    this.globalBoundary.width = Math.min(width, container.width)
+    this.globalBoundary.height = Math.min(height, container.height)
   }
 
-  render(c: CanvasRenderingContext2D, container: Dimensions, state: any) {
+  render(c: CanvasRenderingContext2D, container: Box, state: any) {
     this.subset(container)
     c.beginPath()
     c.rect(
@@ -212,7 +245,7 @@ class Container extends Context {
       this.globalBoundary.height
     )
     c.clip()
-    c.fillStyle = this.color
+    c.fillStyle = this.props.color
     c.fillRect(
       this.globalBoundary.x,
       this.globalBoundary.y,
@@ -221,7 +254,12 @@ class Container extends Context {
     )
   }
 
-  static factory(push, contextKey = '', state: State, contextFactory: ContextFactory) {
+  static factory(
+    push,
+    contextKey = '',
+    state: State,
+    contextFactory: ContextFactory
+  ): ContainerFactory {
     return (key, options, callback) => {
       const derivedKey = contextKey ? contextKey + CONTEXT_SEPARATOR + key : key
       push(new Container(derivedKey, contextKey, options))
@@ -254,12 +292,12 @@ export const init = (c: CanvasRenderingContext2D) => {
         state.get(renderable.key) || (renderable.constructor as any).defaultState
       )
 
-      if (renderable instanceof Context) {
+      if (renderable instanceof ContextContainer) {
         currentContext = renderable.key
         contextMap.set(renderable.key, renderable.globalBoundary)
       }
     }
-    
+
     for (let renderable of renderList) {
       if (renderable.key) {
         state.set(
@@ -283,11 +321,13 @@ export const init = (c: CanvasRenderingContext2D) => {
     })
   }
 
+  const context: ContextFactory = (key, callback) => {
+    push(new ContextContainer(key))
+    return contextFactory(key, callback)
+  }
+
   return {
     render,
-    context: (key: string, callback: Function) => {
-      push(new Context(key))
-      return contextFactory(key, callback)
-    },
+    context,
   }
 }

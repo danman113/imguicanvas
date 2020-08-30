@@ -31,7 +31,7 @@ const start = draw((dt) => {
       'container1',
       { x: 0, y: 0, width: size, height: size, color: 'black' },
       ({ button }) => {
-        const { clicked } = button('thing', frame % size, offset, 50, 50)
+        const { clicked } = button('thing', { x: frame % size, y: offset, width: 50, height: 50 })
         if (clicked) {
           showMovingButton = !showMovingButton
         }
@@ -42,27 +42,60 @@ const start = draw((dt) => {
       'container5',
       { x: 0, y: height / 2, width: size, height: size, color: 'teal' },
       ({ container }) => {
-        container('container', {x: 0, y: 0, width: size, height: size / 2, color: 'green'}, ({ button }) => {
-          const { scrollY, clicked, down } = button('thing', frame % size, 10, 50, 50)
-          offset += scrollY
-          if (clicked) hits++
-          if (down) movingButtonY++
-        })
+        container(
+          'container',
+          { x: 0, y: 0, width: size, height: size / 2, color: 'green' },
+          ({ button }) => {
+            const { scrollY, clicked, down } = button('thing', {
+              x: frame % size,
+              y: 10,
+              width: 50,
+              height: 50,
+            })
+            offset += scrollY
+            if (clicked) hits++
+            if (down) movingButtonY++
+          }
+        )
 
-        container('container2', {x: 0, y: size / 2, width: size / 2, height: size / 2, color: 'orange'}, ({ button }) => {
-          const { clicked } = button('thing', frame % size / 2, 10, 50, 50)
-          if (clicked) alert('yellow')
-        })
+        container(
+          'container2',
+          { x: 0, y: size / 2, width: size / 2, height: size / 2, color: 'orange' },
+          ({ button }) => {
+            const { clicked } = button('thing', {
+              x: (frame % size) / 2,
+              y: 10,
+              width: 50,
+              height: 50,
+            })
+            if (clicked) alert('yellow')
+          }
+        )
 
-        container('container3', {x: size / 2, y: size / 2, width: size / 2, height: size / 2, color: 'purple'}, ({ button }) => {
-          const { clicked } = button('thing', frame % size / 2, 10, 50, 50)
-          if (clicked) alert('purple')
-        })
+        container(
+          'container3',
+          { x: size / 2, y: size / 2, width: size / 2, height: size / 2, color: 'purple' },
+          ({ button }) => {
+            const { clicked } = button('thing', {
+              x: (frame % size) / 2,
+              y: 10,
+              width: 50,
+              height: 50,
+            })
+            if (clicked) alert('purple')
+          }
+        )
       }
     )
 
     if (showMovingButton) {
-      const { scrollY, clicked, down } = button('thing', movingButtonY, 50, 50, 50)
+      const { scrollY, clicked, down } = button('thing', ({ down, hovering }) => ({
+        x: movingButtonY,
+        y: 50,
+        width: 50,
+        height: 50,
+        backgroundColor: [ down && 'yellow',  hovering && 'purple', 'blue' ].filter(Boolean)[0]
+      }))
       if (clicked) alert('Hello you clicked me')
     }
   })
